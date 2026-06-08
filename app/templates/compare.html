@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Compare Companies – Nifty 100 Intelligence{% endblock %}
+
+{% block content %}
+<h1 class="text-3xl font-bold mb-6">Compare Companies</h1>
+<p class="text-gray-600 mb-4">Select 2–4 companies to compare their financial metrics and revenue trends.</p>
+
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <label class="block text-sm font-medium mb-2">Select companies (max 4):</label>
+    <div id="companyCheckboxes" class="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto border p-3 rounded">
+        {% for company in companies %}
+        <label class="flex items-center space-x-2">
+            <input type="checkbox" value="{{ company.symbol }}" class="company-cb">
+            <span>{{ company.symbol }} – {{ company.name[:40] }}</span>
+        </label>
+        {% endfor %}
+    </div>
+    <button id="compareBtn" class="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Compare</button>
+</div>
+
+<div id="results" class="hidden">
+    <div class="overflow-x-auto bg-white rounded-lg shadow mb-6">
+        <table class="min-w-full">
+            <thead class="bg-gray-200">
+                <tr id="compareHeaders"> </tr>
+            </thead>
+            <tbody id="compareRows"></tbody>
+        </table>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+        <h3 class="text-xl font-semibold mb-2">Revenue Comparison Chart</h3>
+        <canvas id="compareChart" width="400" height="200"></canvas>
+    </div>
+</div>
+
+<script>
+    const compareBtn = document.getElementById('compareBtn');
+    const resultsDiv = document.getElementById('results');
+    const compareHeaders = document.getElementById('compareHeaders');
+    const compareRows = document.getElementById('compareRows');
+    let chartInstance = null;
+
+    const metrics = [
+        { label: 'Latest Revenue (₹ Cr)', key: 'revenue' },
+        { label: 'Latest Net Profit (₹ Cr)', key: 'net_profit' },
+        { label: 'Latest EPS (₹)', key: 'eps' },
+        { label: 'Debt to Equity', key: 'debt_to_equity' }
+    ];
+
+    compareBtn.addEventListener('click', async () => {
+        const selected = Array.from(document.querySelectorAll('.company-cb:checked')).map(cb => cb.value);
+        if (selected.length < 2) {
+            alert('Please select at least 2 companies to compare.');
+            return;
+        }
+        if (selected.length > 4) {
+            alert('Please select at most 4 companies.');
+            return;
+        }
+
+        compareBtn.disabled = true;
+        compareBtn.textContent = 'Loading...';
+
+        try {
+            const companiesData = [];
+            for (const sym of selected) {
+                const resp = await fetch(`/api/companies/${sym}`);
+                if (!resp.ok) throw new Error(`Failed to fetch ${sym}`);
+                const data = await resp.json();
+                const latestPl = data.annual_pl?.sort((a,b) => new Date(b.year_ending) - new Date(a.year_ending))[0] || {};
+                const latestBs = data.balance_sheet?.sort((a,b) => new Date(b.year_ending) - new Date(a.year_ending))[0] || {};
+                const debtToEquity = latestBs.total_debt && latestBs.shareholder_equity ? (latestBs.total_debt / latestBs.shareholder_equity).toFixed(2) : 'N/A';
+                companiesData.push({
+                    symbol: sym,
+                    revenue: latestPl.revenue?.toLocaleString('en-IN') || 'N/A',
+                    net_profit: latestPl.net_profit?.toLocaleString('en-IN') || 'N/A',
+                    eps: latestPl.eps || 'N/A',
+                    debt_to_equity: debtToEquity,
+                    annual_pl: data.annual_pl || []
+                });
+            }
+
+            compareHeaders.innerHTML = `<th class="px-4 py-2">Metric</th>` + selected.map(sym => `<th class="px-4 py-2">${sym}</th>`).join('');
+            compareRows.innerHTML = '';
+            for (const metric of metrics) {
+                const row = document.createElement('tr');
+                row.className = 'border-t';
+                row.innerHTML = `<td class="px-4 py-2 font-medium">${metric.label}</td>` +
+                    companiesData.map(c => `<td class="px-4 py-2">${c[metric.key]}</td>`).join('');
+                compareRows.appendChild(row);
+            }
+
+            // Chart data
+            const yearsSet = new Set();
+            companiesData.forEach(c => {
+                c.annual_pl.forEach(pl => { if (pl.year_ending) yearsSet.add(pl.year_ending.split('-')[0]); });
+            });
+            const sortedYears = Array.from(yearsSet).sort();
+            const datasets = companiesData.map((c, idx) => ({
+                label: c.symbol,
+                data: sortedYears.map(year => {
+                    const record = c.annual_pl.find(pl => pl.year_ending && pl.year_ending.startsWith(year));
+                    return record ? record.revenue : null;
+                }),
+                borderColor: `hsl(${idx * 60}, 70%, 50%)`,
+                fill: false
+            }));
+
+            if (chartInstance) chartInstance.destroy();
+            const ctx = document.getElementById('compareChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { labels: sortedYears, datasets },
+                options: { responsive: true, plugins: { tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ₹ ${ctx.raw?.toLocaleString('en-IN')} Cr` } } } }
+            });
+
+            resultsDiv.classList.remove('hidden');
+        } catch (err) {
+            console.error(err);
+            alert('Failed to load comparison data. See console for details.');
+        } finally {
+            compareBtn.disabled = false;
+            compareBtn.textContent = 'Compare';
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}All Nifty 100 Companies{% endblock %}
+
+{% block content %}
+<h1 class="text-3xl font-bold mb-6">All Nifty 100 Companies</h1>
+
+<div class="overflow-x-auto bg-white rounded-lg shadow">
+    <table class="min-w-full">
+        <thead class="bg-gray-200">
+            <tr>
+                <th class="px-4 py-2 text-left">Symbol</th>
+                <th class="px-4 py-2 text-left">Company Name</th>
+                <th class="px-4 py-2 text-left">Sector</th>
+                <th class="px-4 py-2 text-left">Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for company in companies %}
+            <tr class="border-t hover:bg-gray-50">
+                <td class="px-4 py-2 font-mono">{{ company.symbol }}</td>
+                <td class="px-4 py-2">{{ company.name or '-' }}</td>
+                <td class="px-4 py-2">{{ company.sector or '-' }}</td>
+                <td class="px-4 py-2"><a href="/company/{{ company.symbol }}" class="text-blue-600 hover:underline">View</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+<div class="mt-4 flex justify-between items-center">
+    {% if page > 1 %}
+    <a href="/companies?page={{ page - 1 }}" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Previous</a>
+    {% else %}
+    <span class="bg-gray-300 text-gray-500 px-4 py-2 rounded cursor-not-allowed">Previous</span>
+    {% endif %}
+    <span>Page {{ page }} of {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="/companies?page={{ page + 1 }}" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Next</a>
+    {% else %}
+    <span class="bg-gray-300 text-gray-500 px-4 py-2 rounded cursor-not-allowed">Next</span>
+    {% endif %}
+</div>
+{% endblock %}

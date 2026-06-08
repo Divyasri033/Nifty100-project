@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}{{ company.symbol }} - Nifty 100 Intelligence{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <h1 class="text-3xl font-bold">{{ company.name }} ({{ company.symbol }})</h1>
+    <p class="text-gray-600 mt-2">Sector: {{ company.sector or 'Not specified' }}</p>
+</div>
+
+<div class="bg-white rounded-lg shadow p-6">
+    <h2 class="text-2xl font-semibold mb-4">Revenue Trend (Last 10 years)</h2>
+    <canvas id="revenueChart" width="400" height="200"></canvas>
+</div>
+
+<script>
+    const chartData = {{ chart_data | tojson }};
+    const years = chartData.years;
+    const revenues = chartData.revenues;
+
+    if (years && years.length > 0) {
+        const ctx = document.getElementById('revenueChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [{
+                    label: 'Revenue (₹ Cr)',
+                    data: revenues,
+                    borderColor: 'rgb(59, 130, 246)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let value = context.raw;
+                                return '₹ ' + value.toLocaleString('en-IN') + ' Cr';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } else {
+        document.getElementById('revenueChart').parentElement.innerHTML = '<p class="text-gray-500">No financial data available for this company.</p>';
+    }
+</script>
+{% endblock %}
